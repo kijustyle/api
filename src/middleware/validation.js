@@ -166,17 +166,28 @@ const validateRegister = (req, res, next) => {
 }
 
 /**
- * 로그인 데이터 검증
+ * 로그인 데이터 검증 (관리자용)
  */
-const validateLogin = (req, res, next) => {
-  const { email, password } = req.body
+const validateManagerLogin = (req, res, next) => {
+  const { mgId, password } = req.body
   const errors = []
 
-  if (!email) errors.push('이메일은 필수입니다.')
-  if (!password) errors.push('비밀번호는 필수입니다.')
+  if (!mgId) {
+    errors.push({ field: 'mgId', message: '관리자 ID는 필수입니다.' })
+  } else if (mgId.length < 3 || mgId.length > 20) {
+    errors.push({
+      field: 'mgId',
+      message: '관리자 ID는 3-20자 사이여야 합니다.',
+    })
+  }
 
-  if (email && !isValidEmail(email)) {
-    errors.push('올바른 이메일 형식이 아닙니다.')
+  if (!password) {
+    errors.push({ field: 'password', message: '비밀번호는 필수입니다.' })
+  } else if (password.length < 4) {
+    errors.push({
+      field: 'password',
+      message: '비밀번호는 최소 4자 이상이어야 합니다.',
+    })
   }
 
   if (errors.length > 0) {
@@ -194,7 +205,7 @@ const validateLogin = (req, res, next) => {
 module.exports = {
   validateInput,
   validateRegister,
-  validateLogin,
+  validateManagerLogin, // 관리자 로그인 검증으로 변경
   isValidEmail,
   isValidPassword,
   sanitizeString,
