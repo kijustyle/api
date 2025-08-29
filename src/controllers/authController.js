@@ -17,8 +17,13 @@ const login = asyncHandler(async (req, res) => {
   const result = await authService.loginManager(mgId, password, req)
 
   // 성공 응답
-  res.success(result, '로그인이 성공적으로 완료되었습니다.', 200, {
-    loginTime: new Date().toISOString(),
+  res.status(200).json({
+    success: true,
+    message: '로그인이 성공적으로 완료되었습니다.',
+    manager: result.manager, // data 대신 직접 필드명 사용
+    tokens: result.tokens, // 토큰도 최상위로
+    timestamp: new Date().toISOString(),
+    requestId: req.requestId,
   })
 })
 
@@ -27,11 +32,16 @@ const login = asyncHandler(async (req, res) => {
  * GET /api/v1/auth/me
  */
 const getProfile = asyncHandler(async (req, res) => {
-  const mgId = req.user.id // JWT 토큰에서 추출된 관리자 ID
-
+  const mgId = req.user.id
   const manager = await authService.getManagerProfile(mgId, req)
 
-  res.success(manager, '관리자 정보를 조회했습니다.')
+  res.status(200).json({
+    success: true,
+    message: '관리자 정보를 조회했습니다.',
+    manager: manager, // data 대신 manager 사용
+    timestamp: new Date().toISOString(),
+    requestId: req.requestId,
+  })
 })
 
 /**
