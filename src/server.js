@@ -81,6 +81,9 @@ app.set('trust proxy', 1)
 app.use('/health', require('./routes/health'))
 
 app.use('/api/v1/auth', require('./routes/v1/auth'))
+app.use('/api/v1/user', require('./routes/v1/user'))
+app.use('/api/v1/card', require('./routes/v1/card'))
+
 // 기본 라우트
 app.get('/', (req, res) => {
   logInfo('루트 엔드포인트 접근', req)
