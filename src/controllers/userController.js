@@ -29,7 +29,7 @@ const searchUserByEmployeeId = async (req, res) => {
     res.status(200).json({
       success: true,
       message: '사용자 정보를 조회했습니다.',
-      data: user,
+      ...user,
       timestamp: new Date().toISOString()
     })
 

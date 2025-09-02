@@ -23,7 +23,7 @@ const getCardHistory = async (req, res) => {
     res.status(200).json({
       success: true,
       message: '카드 발급 이력을 조회했습니다.',
-      data: result,
+      ...result,
       timestamp: new Date().toISOString()
     })
 

@@ -18,7 +18,7 @@ const searchByEmployeeId = async (employeeId) => {
         m.m_status,
         m.m_gender,
         p.photo as photo_blob,
-        ifnull(c.card_count, '0') as card_count 
+        IFNULL(c.card_count, 0) + 1 as card_count
       from TB_MEMBER m
       left join TB_PHOTO p on m.m_no = p.m_no
       left join TB_CARD c on m.m_no = c.m_no
