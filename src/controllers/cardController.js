@@ -37,43 +37,22 @@ const getCardHistory = async (req, res) => {
   }
 }
 
-/**
- * 카드 발급
- * POST /api/v1/cards/issue
- */
 const issueCard = async (req, res) => {
   try {
-    const { employeeId, cardType = 'employee', issuerNotes = '' } = req.body
-    const issuerId = req.user?.id || 'admin' // 실제로는 JWT에서 가져와야 함
-
-    if (!employeeId) {
-      return res.status(400).json({
-        success: false,
-        message: '사번이 필요합니다.',
-        timestamp: new Date().toISOString()
-      })
-    }
-
     const result = await cardService.issueCard({
-      employeeId,
-      cardType,
-      issuerNotes,
-      issuerId
+      ...req.body,
+      issuerId: req.user.id // 인증된 사용자 ID
     })
-
-    res.status(201).json({
+    
+    res.json({
       success: true,
-      message: '카드가 성공적으로 발급되었습니다.',
       data: result,
-      timestamp: new Date().toISOString()
+      message: '카드 발급이 완료되었습니다.'
     })
-
   } catch (error) {
-    console.error('카드 발급 오류:', error)
     res.status(500).json({
       success: false,
-      message: error.message || '서버 오류가 발생했습니다.',
-      timestamp: new Date().toISOString()
+      message: error.message
     })
   }
 }
