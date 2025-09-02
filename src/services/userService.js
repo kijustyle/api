@@ -1,4 +1,4 @@
-const { sequelize } = require('../database/connection')
+const { sequelize } = require('../config/database')
 const { QueryTypes } = require('sequelize')
 
 /**
@@ -7,26 +7,28 @@ const { QueryTypes } = require('sequelize')
 const searchByEmployeeId = async (employeeId) => {
   try {
     const query = `
-      SELECT 
-        m.M_NO,
-        m.M_NAME,
-        m.M_DEPARTMENT,
-        m.M_DEPARTMENT_NAME,
-        m.M_POSITION,
-        m.M_PHONE,
-        m.M_E_NAME,
-        m.M_STATUS,
-        m.M_GENDER,
-        p.PHOTO as PHOTO_BLOB
-      FROM TB_MEMBER m
-      LEFT JOIN TB_PHOTO p ON m.M_NO = p.M_NO
-      WHERE m.M_NO = :employeeId
-      LIMIT 1
+      select 
+        m.m_no,
+        m.m_name,
+        m.m_department,
+        m.m_department_name,
+        m.m_position,
+        m.m_phone,
+        m.m_e_name,
+        m.m_status,
+        m.m_gender,
+        p.photo as photo_blob,
+        ifnull(c.card_count, '0') as card_count 
+      from TB_MEMBER m
+      left join TB_PHOTO p on m.m_no = p.m_no
+      left join TB_CARD c on m.m_no = c.m_no
+      where m.m_no = :employeeId
+      limit 1
     `
 
     const results = await sequelize.query(query, {
       replacements: { employeeId },
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
 
     if (results.length === 0) {
@@ -37,18 +39,20 @@ const searchByEmployeeId = async (employeeId) => {
 
     // 응답 데이터 변환
     return {
-      m_no: user.M_NO,
-      m_name: user.M_NAME,
-      m_department: user.M_DEPARTMENT,
-      m_department_name: user.M_DEPARTMENT_NAME,
-      m_position: user.M_POSITION,
-      m_phone: user.M_PHONE,
-      m_e_name: user.M_E_NAME,
-      m_status: user.M_STATUS,
-      m_gender: user.M_GENDER,
-      photo_blob: user.PHOTO_BLOB ? Buffer.from(user.PHOTO_BLOB).toString('base64') : null
+      m_no: user.m_no,
+      m_name: user.m_name,
+      m_department: user.m_department,
+      m_department_name: user.m_department_name,
+      m_position: user.m_position,
+      m_phone: user.m_phone,
+      m_e_name: user.m_e_name,
+      m_status: user.m_status,
+      m_gender: user.m_gender,
+      card_count: user.card_count,
+      photo_blob: user.photo_blob
+        ? Buffer.from(user.photo_blob).toString('base64')
+        : null,
     }
-
   } catch (error) {
     console.error('사용자 검색 DB 오류:', error)
     throw new Error('데이터베이스 오류가 발생했습니다.')
@@ -69,13 +73,14 @@ const getUsers = async (params) => {
       replacements.search = `%${search.trim()}%`
     }
 
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+    const whereClause =
+      whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
     // 전체 개수 조회
     const countQuery = `SELECT COUNT(*) as total FROM TB_MEMBER m ${whereClause}`
     const countResults = await sequelize.query(countQuery, {
       replacements,
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
     const total = countResults[0].total
 
@@ -95,16 +100,16 @@ const getUsers = async (params) => {
 
     const dataResults = await sequelize.query(dataQuery, {
       replacements,
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
 
     return {
-      content: dataResults.map(row => ({
+      content: dataResults.map((row) => ({
         m_no: row.M_NO,
         m_name: row.M_NAME,
         m_department_name: row.M_DEPARTMENT_NAME,
         m_position: row.M_POSITION,
-        m_status: row.M_STATUS
+        m_status: row.M_STATUS,
       })),
       totalElements: total,
       totalPages: Math.ceil(total / size),
@@ -112,9 +117,8 @@ const getUsers = async (params) => {
       number: page,
       numberOfElements: dataResults.length,
       first: page === 0,
-      last: page >= Math.ceil(total / size) - 1
+      last: page >= Math.ceil(total / size) - 1,
     }
-
   } catch (error) {
     console.error('사용자 목록 조회 DB 오류:', error)
     throw new Error('데이터베이스 오류가 발생했습니다.')
@@ -137,14 +141,13 @@ const getDepartments = async () => {
     `
 
     const results = await sequelize.query(query, {
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
 
-    return results.map(row => ({
+    return results.map((row) => ({
       code: row.code,
-      name: row.name
+      name: row.name,
     }))
-
   } catch (error) {
     console.error('부서 목록 조회 DB 오류:', error)
     throw new Error('데이터베이스 오류가 발생했습니다.')
@@ -154,5 +157,5 @@ const getDepartments = async () => {
 module.exports = {
   searchByEmployeeId,
   getUsers,
-  getDepartments
+  getDepartments,
 }

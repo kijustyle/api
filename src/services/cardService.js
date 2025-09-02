@@ -1,4 +1,4 @@
-const { sequelize } = require('../database/connection')
+const { sequelize } = require('../config/database')
 const { QueryTypes } = require('sequelize')
 
 // PDF와 QR 코드 라이브러리는 선택적으로 사용
@@ -26,7 +26,7 @@ const getCardHistory = async (params) => {
 
     const countResults = await sequelize.query(countQuery, {
       replacements: { employeeId },
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
     const total = countResults[0].total
 
@@ -50,11 +50,11 @@ const getCardHistory = async (params) => {
 
     const dataResults = await sequelize.query(dataQuery, {
       replacements: { employeeId, size, offset },
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
 
     return {
-      content: dataResults.map(row => ({
+      content: dataResults.map((row) => ({
         id: row.CARD_ID,
         employeeId: row.EMPLOYEE_ID,
         cardType: row.CARD_TYPE,
@@ -62,7 +62,7 @@ const getCardHistory = async (params) => {
         issuedAt: row.ISSUED_AT,
         issuedBy: row.ISSUED_BY,
         status: row.STATUS,
-        issuerNotes: row.ISSUER_NOTES
+        issuerNotes: row.ISSUER_NOTES,
       })),
       totalElements: total,
       totalPages: Math.ceil(total / size),
@@ -70,9 +70,8 @@ const getCardHistory = async (params) => {
       number: page,
       numberOfElements: dataResults.length,
       first: page === 0,
-      last: page >= Math.ceil(total / size) - 1
+      last: page >= Math.ceil(total / size) - 1,
     }
-
   } catch (error) {
     console.error('카드 이력 조회 DB 오류:', error)
     throw new Error('데이터베이스 오류가 발생했습니다.')
@@ -99,7 +98,7 @@ const issueCard = async (params) => {
     const userResults = await sequelize.query(userCheckQuery, {
       replacements: { employeeId },
       type: QueryTypes.SELECT,
-      transaction
+      transaction,
     })
 
     if (userResults.length === 0) {
@@ -117,13 +116,15 @@ const issueCard = async (params) => {
         cardNumber,
         employeeId,
         cardType,
-        issuedAt: new Date().toISOString()
+        issuedAt: new Date().toISOString(),
       })
       qrCode = await QRCode.toDataURL(qrData)
     }
 
     // 카드 ID 생성
-    const cardId = `CARD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const cardId = `CARD_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`
 
     // 카드 발급 정보 저장
     const insertQuery = `
@@ -151,10 +152,10 @@ const issueCard = async (params) => {
         cardNumber,
         issuerId,
         qrCode,
-        issuerNotes
+        issuerNotes,
       },
       type: QueryTypes.INSERT,
-      transaction
+      transaction,
     })
 
     await transaction.commit()
@@ -168,9 +169,8 @@ const issueCard = async (params) => {
       issuedBy: issuerId,
       status: 'active',
       qrCode,
-      issuerNotes
+      issuerNotes,
     }
-
   } catch (error) {
     await transaction.rollback()
     console.error('카드 발급 DB 오류:', error)
@@ -183,10 +183,10 @@ const issueCard = async (params) => {
  */
 const generateCardNumber = (cardType) => {
   const prefix = {
-    'employee': 'NFMC-EMP',
-    'visitor': 'NFMC-VIS',
-    'temporary': 'NFMC-TMP',
-    'contractor': 'NFMC-CON'
+    employee: 'NFMC-EMP',
+    visitor: 'NFMC-VIS',
+    temporary: 'NFMC-TMP',
+    contractor: 'NFMC-CON',
   }
 
   const cardPrefix = prefix[cardType] || 'NFMC-UNK'
@@ -221,7 +221,7 @@ const generateCardPDF = async (cardId) => {
 
     const results = await sequelize.query(query, {
       replacements: { cardId },
-      type: QueryTypes.SELECT
+      type: QueryTypes.SELECT,
     })
 
     if (results.length === 0) {
@@ -233,7 +233,7 @@ const generateCardPDF = async (cardId) => {
     // PDF 생성
     const doc = new PDFDocument({
       size: [340, 215], // 카드 크기
-      margins: { top: 20, bottom: 20, left: 20, right: 20 }
+      margins: { top: 20, bottom: 20, left: 20, right: 20 },
     })
 
     let buffers = []
@@ -246,22 +246,26 @@ const generateCardPDF = async (cardId) => {
       })
 
       // 카드 디자인
-      doc.fontSize(16).font('Helvetica-Bold')
-         .text('국립소방병원', 20, 20)
+      doc.fontSize(16).font('Helvetica-Bold').text('국립소방병원', 20, 20)
 
-      doc.fontSize(12).font('Helvetica')
-         .text(`이름: ${card.EMPLOYEE_NAME}`, 20, 50)
-         .text(`부서: ${card.M_DEPARTMENT_NAME || '-'}`, 20, 70)
-         .text(`직급: ${card.M_POSITION || '-'}`, 20, 90)
-         .text(`사번: ${card.EMPLOYEE_ID}`, 20, 110)
-         .text(`카드번호: ${card.CARD_NUMBER}`, 20, 130)
-         .text(`발급일: ${new Date(card.ISSUED_AT).toLocaleDateString('ko-KR')}`, 20, 150)
+      doc
+        .fontSize(12)
+        .font('Helvetica')
+        .text(`이름: ${card.EMPLOYEE_NAME}`, 20, 50)
+        .text(`부서: ${card.M_DEPARTMENT_NAME || '-'}`, 20, 70)
+        .text(`직급: ${card.M_POSITION || '-'}`, 20, 90)
+        .text(`사번: ${card.EMPLOYEE_ID}`, 20, 110)
+        .text(`카드번호: ${card.CARD_NUMBER}`, 20, 130)
+        .text(
+          `발급일: ${new Date(card.ISSUED_AT).toLocaleDateString('ko-KR')}`,
+          20,
+          150
+        )
 
       doc.end()
     })
 
     return pdfBuffer
-
   } catch (error) {
     console.error('카드 PDF 생성 오류:', error)
     return null
@@ -271,5 +275,5 @@ const generateCardPDF = async (cardId) => {
 module.exports = {
   getCardHistory,
   issueCard,
-  generateCardPDF
+  generateCardPDF,
 }
