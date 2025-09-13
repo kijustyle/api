@@ -60,6 +60,64 @@ const searchByEmployeeId = async (employeeId) => {
 }
 
 /**
+ * 사번으로 사용자 검색 (TB_MEMBER + TB_PHOTO 조인)
+ */
+const findBySearchTerm = async (searchTerm) => {
+  try {
+    const query = `
+      select 
+        m.m_no,
+        m.m_name,
+        m.m_department,
+        m.m_department_name,
+        m.m_position,
+        m.m_phone,
+        m.m_e_name,
+        m.m_status,
+        m.m_gender,
+        p.photo as photo_blob,
+        IFNULL(c.card_count, 0) + 1 as card_count
+      from TB_MEMBER m
+      left join TB_PHOTO p on m.m_no = p.m_no
+      left join TB_CARD c on m.m_no = c.m_no
+      where m.m_name LIKE :searchTerm or m.m_no LIKE :searchTerm
+      limit 1
+    `
+
+    const results = await sequelize.query(query, {
+      replacements: { searchTerm },
+      type: QueryTypes.SELECT,
+    })
+
+    if (results.length === 0) {
+      return null
+    }
+
+    const user = results[0]
+
+    // 응답 데이터 변환
+    return {
+      m_no: user.m_no,
+      m_name: user.m_name,
+      m_department: user.m_department,
+      m_department_name: user.m_department_name,
+      m_position: user.m_position,
+      m_phone: user.m_phone,
+      m_e_name: user.m_e_name,
+      m_status: user.m_status,
+      m_gender: user.m_gender,
+      card_count: user.card_count,
+      photo_blob: user.photo_blob
+        ? Buffer.from(user.photo_blob).toString('base64')
+        : null,
+    }
+  } catch (error) {
+    console.error('사용자 검색 DB 오류:', error)
+    throw new Error('데이터베이스 오류가 발생했습니다.')
+  }
+}
+
+/**
  * 사용자 목록 조회 (페이징)
  */
 const getUsers = async (params) => {

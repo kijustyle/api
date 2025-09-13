@@ -85,14 +85,20 @@ const sanitizeObject = (obj) => {
   return obj
 }
 
-/**
- * 기본 입력 검증 미들웨어
- */
 const validateInput = (req, res, next) => {
   try {
+    // 검증에서 제외할 필드들 (바이너리 데이터나 특수한 형태의 데이터)
+    const excludeFields = ['photo_blob', 'image_data', 'file_data', 'binary_data']
+    
     // 모든 입력 데이터에서 위험한 패턴 검사
     const checkData = (data, path = '') => {
       if (typeof data === 'string') {
+        // 현재 필드가 제외 대상인지 확인
+        const fieldName = path.split('.').pop() // 마지막 필드명 추출
+        if (excludeFields.includes(fieldName)) {
+          return // 검증 건너뛰기
+        }
+        
         if (containsSQLInjection(data)) {
           throw new Error(`SQL Injection 패턴이 감지되었습니다: ${path}`)
         }
@@ -111,9 +117,9 @@ const validateInput = (req, res, next) => {
     if (req.query) checkData(req.query, 'query')
     if (req.params) checkData(req.params, 'params')
 
-    // 데이터 정리
-    if (req.body) req.body = sanitizeObject(req.body)
-    if (req.query) req.query = sanitizeObject(req.query)
+    // 데이터 정리 (제외 필드는 sanitize하지 않음)
+    if (req.body) req.body = sanitizeObjectWithExclusions(req.body, excludeFields)
+    if (req.query) req.query = sanitizeObjectWithExclusions(req.query, excludeFields)
 
     next()
   } catch (error) {
@@ -124,6 +130,32 @@ const validateInput = (req, res, next) => {
       error: 'INVALID_INPUT',
     })
   }
+}
+
+// sanitizeObject를 개선한 버전 (특정 필드 제외 기능 추가)
+const sanitizeObjectWithExclusions = (obj, excludeFields = []) => {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj
+  }
+
+  const sanitized = {}
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      if (excludeFields.includes(key)) {
+        // 제외 필드는 그대로 유지
+        sanitized[key] = obj[key]
+      } else if (typeof obj[key] === 'string') {
+        // 문자열은 sanitize 적용
+        sanitized[key] = sanitizeString(obj[key]) // 기존 sanitize 함수 사용
+      } else if (typeof obj[key] === 'object') {
+        // 중첩 객체는 재귀적으로 처리
+        sanitized[key] = sanitizeObjectWithExclusions(obj[key], excludeFields)
+      } else {
+        sanitized[key] = obj[key]
+      }
+    }
+  }
+  return sanitized
 }
 
 /**

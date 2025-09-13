@@ -19,6 +19,9 @@ router.get('/departments', dummyAuth, userController.getDepartments)
 // 사번으로 사용자 검색
 router.get('/search/:employeeId', dummyAuth, userController.searchUserByEmployeeId)
 
+// 검색어로 사용자 검색
+router.get('/find/:searchTerm', dummyAuth, userController.findUserBySearchTerm)
+
 // 사용자 목록 조회
 router.get('/', dummyAuth, userController.getUsers)
 

@@ -38,21 +38,82 @@ const getCardHistory = async (req, res) => {
 }
 
 const issueCard = async (req, res) => {
+  const startTime = Date.now()
+  let progressInterval
+  
   try {
+    // console.log('=== 카드 발급 컨트롤러 시작 ===', {
+    //   timestamp: new Date().toISOString(),
+    //   userId: req.user.id,
+    //   requestBody: req.body
+    // })
+    
+    // 진행 상황 모니터링 (10초마다)
+    progressInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime
+      console.log(`카드 발급 진행 중... ${elapsed}ms`)
+      
+      if (elapsed > 70000) { // 70초 넘으면 경고
+        console.warn(`카드 발급이 곧 타임아웃될 수 있습니다. 경과시간: ${elapsed}ms`)
+      }
+    }, 10000)
+    
+    // 실제 카드 발급 서비스 호출
     const result = await cardService.issueCard({
       ...req.body,
-      issuerId: req.user.id // 인증된 사용자 ID
+      issuerId: req.user.id
+    })
+    
+    // 진행 상황 모니터링 중지
+    clearInterval(progressInterval)
+    progressInterval = null
+    
+    const totalTime = Date.now() - startTime
+    console.log(`=== 카드 발급 완료 ===`, {
+      totalTime: `${totalTime}ms`,
+      result: result,
+      timestamp: new Date().toISOString()
     })
     
     res.json({
       success: true,
       data: result,
-      message: '카드 발급이 완료되었습니다.'
+      message: '카드 발급이 완료되었습니다.',
+      processingTime: totalTime
     })
+    
   } catch (error) {
-    res.status(500).json({
+    // 진행 상황 모니터링 중지
+    if (progressInterval) {
+      clearInterval(progressInterval)
+      progressInterval = null
+    }
+    
+    const totalTime = Date.now() - startTime
+    console.error(`=== 카드 발급 실패 ===`, {
+      error: error.message,
+      stack: error.stack,
+      totalTime: `${totalTime}ms`,
+      timestamp: new Date().toISOString(),
+      requestBody: req.body
+    })
+    
+    // 타임아웃 에러인지 확인
+    const isTimeout = error.message.includes('timeout') || 
+                     error.message.includes('TIMEOUT') ||
+                     totalTime > 85000
+    
+    const statusCode = isTimeout ? 408 : 500
+    const message = isTimeout ? 
+      '카드 발급 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.' : 
+      '카드 발급 중 오류가 발생했습니다.'
+    
+    res.status(statusCode).json({
       success: false,
-      message: error.message
+      message: message,
+      error: error.message,
+      processingTime: totalTime,
+      timestamp: new Date().toISOString()
     })
   }
 }

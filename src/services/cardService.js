@@ -7,7 +7,7 @@ const iconv = require('iconv-lite')
 const CARD_SERVER_CONFIG = {
   host: process.env.CARD_SERVER_HOST || 'localhost',
   port: parseInt(process.env.CARD_SERVER_PORT) || 8210,
-  timeout: parseInt(process.env.CARD_SERVER_TIMEOUT) || 10000
+  timeout: parseInt(process.env.CARD_SERVER_TIMEOUT) || 60000
 }
 
 /**
@@ -82,69 +82,127 @@ const getCardHistory = async (params) => {
  * 카드 발급 (DB 저장 + 소켓 통신)
  */
 const issueCard = async (params) => {
-  const transaction = await sequelize.transaction()
-
+  let transaction = null;
+  let cardCSN = '';
+  
   try {
+    // 트랜잭션 시작
+    transaction = await sequelize.transaction();
+    
     const { 
       employeeId, 
       name,
       department,
       position,
       cardType, 
-      cardCount,
+      cardCount: originalCardCount,
       photo_blob,
       issuerId 
-    } = params
+    } = params;
 
-    // . 카드 차수 결정
-    let nextCardCount = cardCount
+    let cardCount = originalCardCount;
     
-    if (!nextCardCount) {
-      // 해당 사번의 최대 카드 차수 조회
-      const maxCountQuery = `
-        SELECT IFNULL(MAX(CARD_COUNT), 0) as max_count
-        FROM TB_CARD_ISSUE
-        WHERE M_NO = :employeeId
-      `
+    console.log('카드 발급 시작:', {
+      employeeId,
+      cardType,
+      cardCount,
+      timestamp: new Date().toISOString()
+    });
 
-      const maxCountResults = await sequelize.query(maxCountQuery, {
+    // 1. 사용자 데이터 조회 (필요한 경우)
+    let userData = {};
+    try {
+      const userQuery = `
+        SELECT M_NAME, M_DEPARTMENT, M_POSITION 
+        FROM TB_USER 
+        WHERE M_NO = :employeeId
+      `;
+      const [userResults] = await sequelize.query(userQuery, {
         replacements: { employeeId },
         type: QueryTypes.SELECT,
-        transaction,
-      })
-
-      nextCardCount = maxCountResults[0].max_count + 1
+        transaction
+      });
+      
+      userData = userResults || {};
+      console.log('사용자 데이터 조회 완료:', userData);
+    } catch (userError) {
+      console.warn('사용자 데이터 조회 실패, 입력값 사용:', userError.message);
     }
 
-    // 3. 카드 시리얼 번호 생성
-    const cardSno = generateCardNumber(cardType, nextCardCount)
+    // 2. 현재 카드 번호 확인
+    let nextCardCount = cardCount;
+    try {
+      const cardQuery = `
+        SELECT COALESCE(MAX(CARD_COUNT), 0) + 1 AS next_count 
+        FROM TB_CARD 
+        WHERE M_NO = :employeeId
+      `;
+      const [cardResults] = await sequelize.query(cardQuery, {
+        replacements: { employeeId },
+        type: QueryTypes.SELECT,
+        transaction
+      });
+      
+      if (cardResults && cardResults.next_count) {
+        nextCardCount = cardResults.next_count;
+      }
+      console.log('다음 카드 번호:', nextCardCount);
+    } catch (cardError) {
+      console.warn('카드 번호 조회 실패, 기본값 사용:', cardError.message);
+    }
 
-    // 4. Java 카드 발급 서버로 소켓 전문 전송
-    console.log('카드 발급 서버로 전문 전송 시작...')
-    
+    // 3. 카드 발급 서버 호출
     const socketMessage = buildCardIssueMessage({
       no: employeeId,
       name: name,
       department: department,
       position: position,
-      cardCount: cardCount,
-    })
+      cardCount: nextCardCount,
+      photo_blob: photo_blob,
+      cardType: cardType,
+    });
 
+    console.log('카드 발급 서버 호출 시작');
+    let socketResponse;
+    
     try {
-      const socketResponse = await sendToCardServer(socketMessage)
-      console.log('카드 발급 서버 응답:', socketResponse)
+      socketResponse = await sendToCardServer(socketMessage);
+      console.log('카드 발급 서버 응답:', socketResponse);
 
-      // 응답 확인
-      if (!socketResponse || (!socketResponse.includes('100') && !socketResponse.includes('OK'))) {
-        throw new Error(`카드 발급 서버 처리 실패: ${socketResponse}`)
+      if (!socketResponse) {
+        throw new Error('카드 발급 서버로부터 응답이 없습니다.');
       }
+
+      const parsedResponse = JSON.parse(socketResponse);
+      
+      if (parsedResponse.result === '100') {
+        // 카드 타입에 따른 처리
+        if (cardType === 'R') {
+          // RFID 카드인 경우 실제 CSN 사용
+          cardCSN = parsedResponse.cardCSN || parsedResponse.cardCsn || '';
+          if (!cardCSN) {
+            console.warn('RFID 카드이지만 CSN이 비어있음');
+            cardCSN = `RFID_${employeeId}_${nextCardCount}_${Date.now()}`;
+          }
+        } else {
+          // 일반 카드인 경우
+          cardCount = 0;
+          cardCSN = '-';
+        }
+        console.log('추출된 카드번호:', cardCSN);
+      } else {
+        throw new Error(`카드 발급 실패 - 결과코드: ${parsedResponse.result}`);
+      }
+      
     } catch (socketError) {
-      console.error('소켓 통신 오류:', socketError)
-      throw new Error(`카드 발급 장비 연결 오류: ${socketError.message}`)
+      console.error('소켓 통신 오류:', socketError);
+      throw new Error(`카드 발급 장비 연결 오류: ${socketError.message}`);
     }
 
-    // 5. 카드 발급 정보 DB 저장
-    const insertQuery = `
+    // 4. 카드 발급 이력 저장
+    console.log('DB 저장 시작');
+    
+    const insertHistoryQuery = `
       INSERT INTO TB_CARD_ISSUE (
         M_NO,
         M_DEPARTMENT,
@@ -156,26 +214,61 @@ const issueCard = async (params) => {
         CREATE_DT
       ) VALUES (
         :employeeId, :department, :position, :cardCount,
-        :cardSno, :cardType, :issuerId, NOW()
+        :cardCSN, :cardType, :issuerId, NOW()
       )
-    `
-
-    await sequelize.query(insertQuery, {
+    `;
+    
+    await sequelize.query(insertHistoryQuery, {
       replacements: {
         employeeId,
-        department,
-        position,
-        cardCount,
-        cardSno,
+        department: userData.M_DEPARTMENT || department,
+        position: userData.M_POSITION || position,
+        cardCount: nextCardCount,
+        cardCSN,
         cardType,
         issuerId,
       },
       type: QueryTypes.INSERT,
       transaction,
-    })
+    });
 
-    await transaction.commit()
+    console.log('발급 이력 저장 완료');
 
+    // 5. 카드 정보 업데이트/삽입
+    const upsertCardQuery = `
+      INSERT INTO TB_CARD (
+        M_NO, CARD_COUNT, CARD_STATUS, CARD_SNO, CARD_UDT_TIME, CARD_TYPE
+      ) VALUES (
+        :employeeId, :cardCount, 'Y', :cardCSN, NOW(), :cardType
+      )
+      ON DUPLICATE KEY UPDATE
+        CARD_COUNT = :cardCount,
+        CARD_STATUS = 'Y',
+        CARD_SNO = :cardCSN,
+        CARD_UDT_TIME = NOW(),
+        CARD_TYPE = :cardType
+    `;
+
+    await sequelize.query(upsertCardQuery, {
+      replacements: { 
+        employeeId, 
+        cardCount: nextCardCount, 
+        cardCSN, 
+        cardType 
+      },
+      type: QueryTypes.INSERT,
+      transaction,
+    });
+
+    console.log('카드 정보 저장 완료');
+
+    // 6. 트랜잭션 커밋
+    await transaction.commit();
+    transaction = null; // 트랜잭션 상태 초기화
+    
+    console.log('카드 발급 전체 완료');
+
+    // 7. 성공 응답 반환
     return {
       id: `${employeeId}_${nextCardCount}`,
       employeeId,
@@ -183,18 +276,34 @@ const issueCard = async (params) => {
       department: userData.M_DEPARTMENT || department,
       position: userData.M_POSITION || position,
       cardCount: nextCardCount,
-      cardNumber: cardSno,
+      cardCSN: cardCSN,
       cardType,
       issuedBy: issuerId,
       issuedAt: new Date().toISOString(),
       status: 'active',
-    }
+    };
+
   } catch (error) {
-    await transaction.rollback()
-    console.error('카드 발급 오류:', error)
-    throw error
+    console.error('카드 발급 오류 발생:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    // 트랜잭션이 아직 활성 상태인지 확인 후 롤백
+    if (transaction && !transaction.finished) {
+      try {
+        await transaction.rollback();
+        console.log('트랜잭션 롤백 완료');
+      } catch (rollbackError) {
+        console.error('트랜잭션 롤백 실패:', rollbackError.message);
+      }
+    }
+
+    // 에러 재발생
+    throw error;
   }
-}
+};
 
 /**
  * 카드 일괄 발급
@@ -373,6 +482,10 @@ const testConnection = async () => {
  * 형식: 0|사번|이름|부서|직위|카드번호|발급일자|사진데이터
  */
 const buildCardIssueMessage = (cardData) => {
+
+  console.log('Base64 photo length:', cardData.photo_blob ? cardData.photo_blob.length : 'null');
+  console.log('Base64 photo preview:', cardData.photo_blob ? cardData.photo_blob.substring(0, 100) + '...' : 'null');
+  
   const parts = [
     '0', // 즉시발급 구분자
     cardData.no || '',
@@ -380,6 +493,8 @@ const buildCardIssueMessage = (cardData) => {
     cardData.department || '',
     cardData.position || '',
     cardData.cardCount || '',
+    cardData.cardType || '',
+    cardData.photo_blob || '',
     getCurrentDate(), // 발급일자
   ]
 

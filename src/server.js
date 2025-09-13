@@ -174,6 +174,11 @@ const server = app.listen(PORT, () => {
   })
 })
 
+// 타임아웃 설정 (60초)
+server.timeout = 60000;
+server.keepAliveTimeout = 60000;
+server.headersTimeout = 65000; // keepAliveTimeout보다 조금 더 크게
+
 // 포트 충돌 에러 처리
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
