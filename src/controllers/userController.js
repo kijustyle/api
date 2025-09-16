@@ -59,23 +59,17 @@ const findUserBySearchTerm = async (req, res) => {
       })
     }
 
-    const user = await userService.findBySearchTerm(searchTerm)
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: '해당 검색어의 사용자를 찾을 수 없습니다.',
-        timestamp: new Date().toISOString()
-      })
-    }
+    const users = await userService.findBySearchTerm(searchTerm)
 
     res.status(200).json({
       success: true,
-      message: '사용자 정보를 조회했습니다.',
-      ...user,
+      message: users.length > 0 
+        ? `${users.length}명의 사용자를 찾았습니다.`
+        : '검색 결과가 없습니다.',
+      data: users, // 배열로 반환
+      count: users.length,
       timestamp: new Date().toISOString()
     })
-
   } catch (error) {
     console.error('사용자 검색 오류:', error)
     res.status(500).json({

@@ -60,7 +60,7 @@ const searchByEmployeeId = async (employeeId) => {
 }
 
 /**
- * 사번으로 사용자 검색 (TB_MEMBER + TB_PHOTO 조인)
+ * 검색어로 사용자 검색 (TB_MEMBER + TB_PHOTO 조인)
  */
 const findBySearchTerm = async (searchTerm) => {
   try {
@@ -80,23 +80,35 @@ const findBySearchTerm = async (searchTerm) => {
       from TB_MEMBER m
       left join TB_PHOTO p on m.m_no = p.m_no
       left join TB_CARD c on m.m_no = c.m_no
-      where m.m_name LIKE :searchTerm or m.m_no LIKE :searchTerm
-      limit 1
+      where (m.m_name LIKE :searchTerm OR m.m_no LIKE :searchTerm)
+      order by 
+        CASE 
+          WHEN m.m_no = :exactTerm THEN 1
+          WHEN m.m_name = :exactTerm THEN 2
+          ELSE 3  -- 부분 매치
+        END,
+        m.m_name ASC
+      limit 20  -- 최대 20개 결과
     `
 
+    const searchPattern = `%${searchTerm.trim()}%`
+    const exactTerm = searchTerm.trim()
+
     const results = await sequelize.query(query, {
-      replacements: { searchTerm },
+      replacements: { 
+        searchTerm: searchPattern,
+        exactTerm: exactTerm
+      },
       type: QueryTypes.SELECT,
     })
 
+    // 빈 배열 반환 (null이 아닌)
     if (results.length === 0) {
-      return null
+      return []
     }
 
-    const user = results[0]
-
-    // 응답 데이터 변환
-    return {
+    // 배열로 반환하도록 수정
+    return results.map(user => ({
       m_no: user.m_no,
       m_name: user.m_name,
       m_department: user.m_department,
@@ -110,13 +122,12 @@ const findBySearchTerm = async (searchTerm) => {
       photo_blob: user.photo_blob
         ? Buffer.from(user.photo_blob).toString('base64')
         : null,
-    }
+    }))
   } catch (error) {
     console.error('사용자 검색 DB 오류:', error)
     throw new Error('데이터베이스 오류가 발생했습니다.')
   }
 }
-
 /**
  * 사용자 목록 조회 (페이징)
  */
@@ -214,6 +225,7 @@ const getDepartments = async () => {
 
 module.exports = {
   searchByEmployeeId,
+  findBySearchTerm,
   getUsers,
   getDepartments,
 }

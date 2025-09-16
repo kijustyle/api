@@ -40,7 +40,7 @@ const Manager = sequelize.define(
 
     // M_NO - 관리자 번호 (Auto Increment 가능)
     M_NO: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING(20),
       allowNull: true,
       comment: '관리자 번호',
     },

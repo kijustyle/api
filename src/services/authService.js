@@ -110,7 +110,7 @@ const getManagerProfile = async (mgId, req) => {
 /**
  * 토큰 갱신
  */
-const refreshAccessToken = async (refreshToken, req) => {
+const refreshAccessToken = async (refreshToken, req, rotateRefreshToken) => {
   try {
     // 리프레시 토큰 검증은 JWT 유틸에서 처리
     const { verifyToken } = require('../utils/jwt')
@@ -125,6 +125,10 @@ const refreshAccessToken = async (refreshToken, req) => {
       throw new UnauthorizedError('유효하지 않은 관리자입니다.')
     }
 
+    if (manager.MG_STATUS === 'N') {
+      throw new UnauthorizedError('비활성화된 관리자 계정입니다.')
+    }
+
     // 새 액세스 토큰 생성
     const tokenPayload = {
       id: manager.MG_ID,
@@ -135,10 +139,16 @@ const refreshAccessToken = async (refreshToken, req) => {
 
     const newAccessToken = generateToken(tokenPayload, '1h')
 
+    let newRefreshToken = null
+    if (rotateRefreshToken) {
+      newRefreshToken = generateRefreshToken(tokenPayload)
+    }
+
     logInfo('토큰 갱신 성공', req, { mgId: decoded.id })
 
     return {
       accessToken: newAccessToken,
+      refreshToken: newRefreshToken, // null이거나 새 토큰
       tokenType: 'Bearer',
       expiresIn: 3600,
     }

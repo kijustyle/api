@@ -52,15 +52,20 @@ const refreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body
 
   if (!refreshToken) {
-    return res.validationError(
-      [{ field: 'refreshToken', message: '리프레시 토큰이 필요합니다.' }],
-      '리프레시 토큰이 제공되지 않았습니다.'
-    )
+    return res.status(401).json({
+      success: false,
+      message: '리프레시 토큰이 필요합니다.',
+      error: 'MISSING_REFRESH_TOKEN'
+    })
   }
 
-  const result = await authService.refreshAccessToken(refreshToken, req)
+  const result = await authService.refreshAccessToken(refreshToken, req, false)
 
-  res.success(result, '토큰이 성공적으로 갱신되었습니다.')
+  return res.status(200).json({
+    success: true,
+    message: '토큰이 성공적으로 갱신되었습니다.',
+    data: result,
+  });
 })
 
 /**

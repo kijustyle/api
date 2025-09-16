@@ -31,10 +31,12 @@
     "iconv-lite": "^0.7.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
     "mysql2": "^3.14.3",
     "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
-    "sequelize": "^6.32.1"
+    "sequelize": "^6.32.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

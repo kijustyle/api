@@ -72,7 +72,7 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // 입력 데이터 검증 및 정리
-app.use('/api/', validateInput)
+// app.use('/api/', validateInput)
 
 // 신뢰할 수 있는 프록시 설정 (nginx, cloudflare 등 사용시)
 app.set('trust proxy', 1)
@@ -83,6 +83,7 @@ app.use('/health', require('./routes/health'))
 app.use('/api/v1/auth', require('./routes/v1/auth'))
 app.use('/api/v1/user', require('./routes/v1/user'))
 app.use('/api/v1/card', require('./routes/v1/card'))
+app.use('/api/v1/batch', require('./routes/v1/batch'))
 
 // 기본 라우트
 app.get('/', (req, res) => {

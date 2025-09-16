@@ -134,6 +134,7 @@ const validateInput = (req, res, next) => {
 
 // sanitizeObject를 개선한 버전 (특정 필드 제외 기능 추가)
 const sanitizeObjectWithExclusions = (obj, excludeFields = []) => {
+  
   if (typeof obj !== 'object' || obj === null) {
     return obj
   }
