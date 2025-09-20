@@ -120,6 +120,52 @@ const deleteBatchEmployee = async (req, res) => {
   }
 }
 
+const updateCardType = async (req, res) => {
+  try {
+    const { employeeId, cardType } = req.body;
+    const userId = req.user.no
+    
+    // 유효성 검사
+    if (!employeeId || !cardType) {
+      return res.status(400).json({
+        success: false,
+        message: '사번과 카드 타입은 필수입니다.'
+      });
+    }
+    
+    if (!['R', 'P'].includes(cardType.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: '카드 타입은 R 또는 P만 가능합니다.'
+      });
+    }
+    
+    // 데이터베이스 업데이트
+    const result = await batchService.updateCardType(employeeId, cardType.toUpperCase(), userId);
+    
+    if (result) {
+      res.json({
+        success: true,
+        message: '카드 타입이 변경되었습니다.',
+        data: result
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: '해당 직원을 찾을 수 없습니다.'
+      });
+    }
+    
+  } catch (error) {
+    console.error('카드 타입 업데이트 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '카드 타입 변경 중 오류가 발생했습니다.'
+    });
+  }
+};
+
+
 const XLSX = require('xlsx')
 
 const uploadExcelFile = async (req, res) => {
@@ -217,5 +263,6 @@ module.exports = {
   selectSavedBatchList,
   saveBatchEmployees,
   deleteBatchEmployee,
+  updateCardType,
   uploadExcelFile
 }

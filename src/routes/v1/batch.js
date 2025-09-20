@@ -33,6 +33,8 @@ router.get('/list', authenticateToken, batchController.selectSavedBatchList)
 router.post('/save', authenticateToken, batchController.saveBatchEmployees)
 // 일괄 발급 대상자 삭제
 router.delete('/delete/:employeeId', authenticateToken, batchController.deleteBatchEmployee)
+// 저장된 대량 발급 대상자의 카드 타입 변경
+router.put('/update-card-type', authenticateToken, batchController.updateCardType)
 // 엑셀 파일 업로드 (POST로 수정)
 router.post('/upload-excel', 
   authenticateToken, 

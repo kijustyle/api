@@ -172,7 +172,56 @@ const deleteBatchEmployee = async (employeeId, createId) => {
   }
 };
 
-// src/services/batchService.js
+const updateCardType = async (employeeId, cardType, createId) => {
+  try {
+    // 현재 값 확인
+    const checkQuery = `
+      SELECT CARD_TYPE 
+      FROM TB_CARD_BATCH_SAV 
+      WHERE M_NO = :employeeId AND CREATE_ID = :createId
+    `;
+    
+    const [current] = await sequelize.query(checkQuery, {
+      replacements: { employeeId, createId },
+      type: QueryTypes.SELECT,
+    });
+    
+    if (!current) {
+      return null; // 레코드 없음
+    }
+    
+    if (current.CARD_TYPE === cardType) {
+      // 이미 같은 값이면 성공으로 처리
+      return {
+        employeeId,
+        cardType,
+        affectedRows: 1, // 논리적으로 성공
+        message: '이미 동일한 값입니다.'
+      };
+    }
+    
+    // 실제 업데이트 수행
+    const updateQuery = `
+      UPDATE TB_CARD_BATCH_SAV 
+      SET CARD_TYPE = :cardType
+      WHERE M_NO = :employeeId AND CREATE_ID = :createId
+    `;
+    
+    const result = await sequelize.query(updateQuery, {
+      replacements: { employeeId, cardType, createId },
+      type: QueryTypes.UPDATE,
+    });
+
+    return {
+      employeeId,
+      cardType,
+      affectedRows: result[1] || 1
+    };
+    
+  } catch (error) {
+    throw error;
+  }
+};
 
 const saveEmployeesFromExcel = async (employeeIds, cardType, createId) => {
   const transaction = await sequelize.transaction()
@@ -277,5 +326,6 @@ module.exports = {
   selectSavedBatchList,
   saveBatchEmployees,
   deleteBatchEmployee,
+  updateCardType,
   saveEmployeesFromExcel
 }
