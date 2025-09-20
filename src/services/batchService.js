@@ -179,7 +179,7 @@ const saveEmployeesFromExcel = async (employeeIds, cardType, createId) => {
   
   try {
     // 중복 제거
-    const uniqueIds = [...new Set(employeeIds)]
+    // const uniqueIds = [...new Set(employeeIds)]
     
     // 이미 존재하는 사번 확인
     const checkQuery = `
@@ -191,7 +191,7 @@ const saveEmployeesFromExcel = async (employeeIds, cardType, createId) => {
     
     const existingRecords = await sequelize.query(checkQuery, {
       replacements: { 
-        employeeIds: uniqueIds,
+        employeeIds: employeeIds,
         createId 
       },
       type: QueryTypes.SELECT,
@@ -201,36 +201,66 @@ const saveEmployeesFromExcel = async (employeeIds, cardType, createId) => {
     const existingIds = existingRecords.map(record => record.M_NO)
     
     // 새로 추가할 사번들
-    const newIds = uniqueIds.filter(id => !existingIds.includes(id))
+    const newIds = employeeIds.filter(id => !existingIds.includes(id))
     
-    console.log(`전체: ${uniqueIds.length}, 기존: ${existingIds.length}, 신규: ${newIds.length}`)
+    console.log(`전체: ${employeeIds.length}, 기존: ${existingIds.length}, 신규: ${newIds.length}`)
+
+    console.log(existingIds);
+    console.log(newIds);
+    
     
     // 새 사번들 저장
     const savedEmployees = []
     
     for (const employeeId of newIds) {
-      const insertQuery = `
-        INSERT INTO TB_CARD_BATCH_SAV (M_NO, CARD_TYPE, CREATE_ID, CREATE_DT)
-        VALUES (:mNo, :cardType, :createId, NOW())
+
+      const memberCnt = `
+        select 
+          count(*) AS cnt
+        from 
+          TB_MEMBER
+        where 
+          m_no = :employeeId
       `
-      
-      await sequelize.query(insertQuery, {
-        replacements: {
-          mNo: employeeId,
-          cardType,
-          createId
-        },
-        type: QueryTypes.INSERT,
-        transaction
-      })
-      
-      savedEmployees.push(employeeId)
-    }
     
+      const memberCntResult = await sequelize.query(memberCnt, {
+        replacements: { employeeId },
+        type: QueryTypes.SELECT
+      });
+
+      const count = memberCntResult[0]?.cnt || 0;
+      
+      
+      if(count > 0) {
+
+        const insertQuery = `
+          INSERT INTO TB_CARD_BATCH_SAV (M_NO, CARD_TYPE, CREATE_ID, CREATE_DT)
+          VALUES (:mNo, :cardType, :createId, NOW()) 
+        `
+        
+        await sequelize.query(insertQuery, {
+          replacements: {
+            mNo: employeeId,
+            cardType,
+            createId
+          },
+          type: QueryTypes.INSERT,
+          transaction
+        })
+        
+        savedEmployees.push(employeeId)
+      
+      }else {
+        existingIds.push(employeeId)
+      }
+      
+     
+    }
+
     await transaction.commit()
     
     return {
-      savedCount: newIds.length,
+      savedCount: savedEmployees.length,
       skippedCount: existingIds.length,
       savedEmployees: savedEmployees,
       skippedEmployees: existingIds
