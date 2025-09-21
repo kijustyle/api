@@ -13,6 +13,10 @@ const { validateLogin } = require('../middleware/validation')
 const login = asyncHandler(async (req, res) => {
   const { mgId, password } = req.body
 
+  console.log(mgId);
+  console.log(password);
+  
+
   // 로그인 서비스 호출
   const result = await authService.loginManager(mgId, password, req)
 
@@ -129,7 +133,11 @@ const changePassword = asyncHandler(async (req, res) => {
     req
   )
 
-  res.success(result, '비밀번호가 성공적으로 변경되었습니다.')
+  res.status(200).json({
+    success: true,
+    message: result.message,
+    
+  });
 })
 
 /**
