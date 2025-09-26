@@ -4,6 +4,9 @@ const { generateToken, generateRefreshToken } = require('../utils/jwt')
 const { logInfo, logWarn, logAuthError } = require('../utils/errorLogger')
 const { AppError, UnauthorizedError } = require('../middleware/errorHandler')
 
+const { sequelize } = require('../config/database')
+const { QueryTypes } = require('sequelize')
+
 /**
  * 인증 관련 서비스 로직
  */
@@ -232,10 +235,60 @@ const createInitialPassword = async (mgId, initialPassword = '1234') => {
   }
 }
 
+const authRfid = async (IDNO, CARD_COUNT, req) => {
+
+  console.log(IDNO);
+  
+  try {
+    // 관리자 정보 조회
+    const query = `
+      SELECT 
+          m.m_no,
+          m.m_name,
+          m.m_department_name,
+          m.m_position,
+          m.m_status,
+          IFNULL(c.card_count, 0) as card_count,
+          p.photo as photo_blob
+      FROM 
+          TB_MEMBER m
+      LEFT JOIN TB_CARD c ON m.m_no = c.m_no
+      LEFT JOIN TB_PHOTO p ON m.m_no = p.m_no
+      WHERE 
+          m.m_no = :IDNO
+    `
+    const result = await sequelize.query(query, {
+      replacements: { 
+        IDNO
+      },
+      type: QueryTypes.SELECT,
+    })
+
+    const user = result[0]
+
+    return {
+      m_no: user.m_no,
+      m_name: user.m_name,
+      m_department: user.m_department_name,
+      m_position: user.m_position,
+      m_status: user.m_status,
+      card_count: user.card_count,
+      photo_blob: user.photo_blob
+        ? Buffer.from(user.photo_blob).toString('base64')
+        : null,
+    }
+  } catch (error) {
+    console.log(error);
+    
+    throw new AppError('로그인 처리 중 오류가 발생했습니다.', 500)
+  }
+}
+
 module.exports = {
   loginManager,
   getManagerProfile,
   refreshAccessToken,
   changePassword,
   createInitialPassword,
+  authRfid
 }

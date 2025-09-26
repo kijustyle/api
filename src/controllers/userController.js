@@ -37,7 +37,7 @@ const searchUserByEmployeeId = async (req, res) => {
     console.error('사용자 검색 오류:', error)
     res.status(500).json({
       success: false,
-      message: '서버 오류가 발생했습니다.',
+      message: error.message,
       timestamp: new Date().toISOString()
     })
   }
@@ -70,6 +70,8 @@ const findUserBySearchTerm = async (req, res) => {
       count: users.length,
       timestamp: new Date().toISOString()
     })
+
+    
   } catch (error) {
     console.error('사용자 검색 오류:', error)
     res.status(500).json({

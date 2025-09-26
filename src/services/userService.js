@@ -1,61 +1,59 @@
 const { sequelize } = require('../config/database')
 const { QueryTypes } = require('sequelize')
+const apiHisService = require('./apiHisService');
 
 /**
  * 사번으로 사용자 검색 (TB_MEMBER + TB_PHOTO 조인)
  */
 const searchByEmployeeId = async (employeeId) => {
   try {
+
+    const member = await apiHisService.getEmployeeData(employeeId);
+    if (!member) {
+      return null;
+    }
+
     const query = `
-      select 
+      select
         m.m_no,
         m.m_name,
         m.m_department,
-        m.m_department_name,
+        d.CD_NAME AS m_department_name,
         m.m_position,
+        p.CD_NAME  AS m_position_name,
         m.m_phone,
         m.m_e_name,
         m.m_status,
         m.m_gender,
         p.photo as photo_blob,
         IFNULL(c.card_count, 0) + 1 as card_count
-      from TB_MEMBER m
-      left join TB_PHOTO p on m.m_no = p.m_no
-      left join TB_CARD c on m.m_no = c.m_no
+    from TB_MEMBER m
+            left join (SELECT CD_CODE, CD_NAME FROM ccms.TB_CODE WHERE PC_CODE = '001') d on m.m_department = d.CD_CODE
+            left join (SELECT CD_CODE, CD_NAME FROM ccms.TB_CODE WHERE PC_CODE = '007') p on m.m_position = p.CD_CODE
+            left join TB_PHOTO p on m.m_no = p.m_no
+            left join TB_CARD c on m.m_no = c.m_no
       where m.m_no = :employeeId
       limit 1
     `
 
     const results = await sequelize.query(query, {
-      replacements: { employeeId },
+      replacements: { employeeId: member.M_NO },
       type: QueryTypes.SELECT,
     })
 
-    if (results.length === 0) {
-      return null
-    }
-
-    const user = results[0]
+    const result = results[0]
 
     // 응답 데이터 변환
     return {
-      m_no: user.m_no,
-      m_name: user.m_name,
-      m_department: user.m_department,
-      m_department_name: user.m_department_name,
-      m_position: user.m_position,
-      m_phone: user.m_phone,
-      m_e_name: user.m_e_name,
-      m_status: user.m_status,
-      m_gender: user.m_gender,
-      card_count: user.card_count,
-      photo_blob: user.photo_blob
-        ? Buffer.from(user.photo_blob).toString('base64')
+      ...result,
+      photo_blob: result && result.photo_blob
+        ? Buffer.from(result.photo_blob).toString('base64')
         : null,
     }
+
   } catch (error) {
-    console.error('사용자 검색 DB 오류:', error)
-    throw new Error('데이터베이스 오류가 발생했습니다.')
+    console.error('사용자 검색 DB 오류:', error.message)
+    throw new Error(error.message);
   }
 }
 

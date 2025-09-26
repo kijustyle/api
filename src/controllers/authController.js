@@ -49,6 +49,30 @@ const getProfile = asyncHandler(async (req, res) => {
 })
 
 /**
+ * 관리자 정보 조회
+ * GET /api/v1/auth/me
+ */
+const authRfid = asyncHandler(async (req, res) => {
+  const { IDNO, CARD_COUNT } = req.body
+
+  console.log(IDNO);
+  console.log(CARD_COUNT);
+  
+  const member = await authService.authRfid(IDNO, CARD_COUNT, req)
+
+  res.status(200).json({
+    success: true,
+    m_no: member.m_no,
+    m_name: member.m_name,
+    m_department: member.m_department,
+    m_position: member.m_position,
+    m_status: member.m_status,
+    card_count: member.card_count,
+    photo_blob: member.photo_blob
+  })
+})
+
+/**
  * 토큰 갱신
  * POST /api/v1/auth/refresh
  */
@@ -209,4 +233,5 @@ module.exports = {
   changePassword,
   checkPermission,
   generateTempPassword,
+  authRfid
 }

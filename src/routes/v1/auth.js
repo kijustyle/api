@@ -32,6 +32,11 @@ router.get(
   authController.getProfile
 )
 
+router.post(
+  '/rfid',
+  authController.authRfid
+)
+
 // 토큰 갱신
 router.post('/refresh', authController.refreshToken)
 

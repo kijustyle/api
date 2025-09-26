@@ -8,6 +8,11 @@ const { getCorsOptions } = require('./config/cors')
 const { generalLimiter } = require('./middleware/rateLimiter')
 const { validateInput } = require('./middleware/validation')
 
+// 동기화 서비스 
+const employeeSyncService = require('./batch/EmployeeSyncService');
+const patientSyncService = require('./batch/PatientSyncService');
+const codeSyncService = require('./batch/CodeSyncService');
+
 // 로깅 및 모니터링 시스템
 const {
   getRequestLogger,
@@ -28,6 +33,21 @@ logSystemInfo('서버 시작 중...', {
 
 // 데이터베이스 연결
 connectDB()
+ 
+// 크론 서비스 시작 (환경 변수로 제어)
+const enableCron = process.env.ENABLE_CRON
+if (enableCron) {
+  try {
+    employeeSyncService.startCronJob()
+    patientSyncService.startCronJob()
+    codeSyncService.startCronJob()
+  } catch (error) {
+    logError('크론 서비스 시작 실패', error)
+    console.error('❌ 크론 서비스 시작 실패. 서버는 계속 실행됩니다.')
+  }
+} else {
+  logSystemInfo('크론 서비스가 비활성화되었습니다. (ENABLE_CRON=false)')
+}
 
 // 보안 미들웨어들
 app.use(
