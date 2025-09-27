@@ -5,7 +5,7 @@ const { QueryTypes } = require('sequelize')
 class ApiHisService {
   constructor() {
     // 외부 API 기본 설정
-    this.baseURL = 'http://221.142.113.132/PA/AccessControl/AccessControl.asmx/AccessControlWebService';
+    this.baseURL = process.env.API_URL;
     this.timeout = 10000; // 10초 타임아웃
   }
 

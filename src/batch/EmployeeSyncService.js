@@ -6,7 +6,7 @@ const cron = require('node-cron');
 class EmployeeSyncService {
   constructor() {
     // 외부 API 기본 설정
-    this.baseURL = 'http://221.142.113.132/PA/AccessControl/AccessControl.asmx/AccessControlWebService';
+    this.baseURL = process.env.API_URL;
     this.timeout = 30000; // 30초 타임아웃 (전체 조회는 시간이 더 걸릴 수 있음)
   }
 
